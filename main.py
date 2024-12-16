@@ -59,10 +59,9 @@ def fetch_data_from_database():
         return cursor.fetchall()
 
 
-def track_prices():
-    date_of_last_notification = datetime(2024, 12, 9, 10, 0, 0)
-    now = datetime.now()
-    time_difference = now - date_of_last_notification
+def track_prices(last_notification, now):
+
+    time_difference = now - last_notification
 
     for product in products_list:
         try:
@@ -100,7 +99,9 @@ def track_prices():
                 if time_difference >= timedelta(days=7):
                     send_email(base_url + product, final_price, price_limits[product])
                     logging.info("Email sent.")
-                # TODO: make email notifications more smart, for example if an email is already sent first day, do not send it next day
+                # TODO: make email notifications more smart, for example if an email is already sent first day,
+                #  do not send it next day.
+                #  Store notifications details in database to control previous notification date
 
             insert_data_to_database(product, title, base_url + product, final_price, scraping_date)
 
@@ -117,12 +118,15 @@ if __name__ == '__main__':
         level=logging.INFO
     )
 
+    last_notification = datetime(2024, 12, 9, 10, 0, 0)
+    now = datetime.now()
+
     if not os.path.exists('prices.db'):
         logging.info("Creating database")
         create_database()
     # print(fetch_data_from_database())
     logging.info("Start scraping")
-    track_prices()
+    track_prices(last_notification, now)
     schedule.every(1).minutes.do(track_prices)
 
     while True:
