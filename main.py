@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from send_email import send_email
+from notifications import save_last_notification, load_last_notification
 import time
 import schedule
 import requests
@@ -59,9 +60,10 @@ def fetch_data_from_database():
         return cursor.fetchall()
 
 
-def track_prices(last_notification, now):
-
-    time_difference = now - last_notification
+def track_prices():
+    now = datetime.now()
+    # Get last notification date from JSON file. When there is no notification date yet, return None
+    last_notification = load_last_notification()
 
     for product in products_list:
         try:
@@ -92,16 +94,15 @@ def track_prices(last_notification, now):
             # print(scraping_date)
             print(base_url + product)
             print(title)
-            print(final_price)
+            print(f"{final_price} PLN")
             print('----------------------------------------------')
 
             if final_price <= price_limits[product]:
-                if time_difference >= timedelta(days=7):
+                if last_notification is None or now - last_notification >= timedelta(days=7):
+                    # Send an email once a week, save last notification date to JSON file to control sending date
                     send_email(base_url + product, final_price, price_limits[product])
+                    save_last_notification(now)
                     logging.info("Email sent.")
-                # TODO: make email notifications more smart, for example if an email is already sent first day,
-                #  do not send it next day.
-                #  Store notifications details in database to control previous notification date
 
             insert_data_to_database(product, title, base_url + product, final_price, scraping_date)
 
@@ -118,15 +119,12 @@ if __name__ == '__main__':
         level=logging.INFO
     )
 
-    last_notification = datetime(2024, 12, 9, 10, 0, 0)
-    now = datetime.now()
-
     if not os.path.exists('prices.db'):
         logging.info("Creating database")
         create_database()
     # print(fetch_data_from_database())
     logging.info("Start scraping")
-    track_prices(last_notification, now)
+    track_prices()
     schedule.every(1).minutes.do(track_prices)
 
     while True:
